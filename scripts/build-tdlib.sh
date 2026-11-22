@@ -87,7 +87,10 @@ build_openssl() {
 
 # ── Java API (host build of TDLib's code generators) ────────────────────────────────────────
 echo "==> Generating TdApi.java"
-cmake -S "$TD_ANDROID" -B "$WORK/native" -DTD_GENERATE_SOURCE_FILES=ON >/dev/null
+# PHP_EXECUTABLE=OFF: with PHP installed (GitHub's runners have it), TDLib's generator also adds
+# androidx @Nullable/@IntDef annotations to TdApi.java, and TG9 has no AndroidX. Without it the
+# output is the same on every machine.
+cmake -S "$TD_ANDROID" -B "$WORK/native" -DTD_GENERATE_SOURCE_FILES=ON -DPHP_EXECUTABLE=OFF >/dev/null
 cmake --build "$WORK/native" -j"$JOBS" >/dev/null
 cmake --build "$WORK/native" --target tl_generate_java >/dev/null
 mkdir -p "$OUT_JAVA"
