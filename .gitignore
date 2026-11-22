@@ -1,0 +1,13 @@
+.gradle/
+build/
+local.properties
+keystore.properties
+*.iml
+.idea/
+.DS_Store
+
+# Produced by scripts/build-tdlib.sh from the third_party/td submodule.
+tdlib/src/main/java/org/drinkless/
+tdlib/src/main/jniLibs/
+build-tdlib.log
+dist/

@@ -1,0 +1,6 @@
+[submodule "third_party/td"]
+	path = third_party/td
+	url = https://github.com/tdlib/td.git
+[submodule "nine-core"]
+	path = nine-core
+	url = https://github.com/NineTailsFlip/nine-core.git
