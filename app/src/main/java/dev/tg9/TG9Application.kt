@@ -5,6 +5,7 @@ import dev.tg9.notify.ConnectionService
 import dev.tg9.notify.Notifications
 import dev.tg9.settings.SettingsActivity
 import dev.tg9.tg.Tg
+import io.github.ninetailsflip.update.Updates
 import life.furrer.nine.core.KeyHelp
 import life.furrer.nine.core.Nine
 import life.furrer.nine.core.NineApp
@@ -14,6 +15,7 @@ class TG9Application : Application() {
     override fun onCreate() {
         super.onCreate()
         Nine.init(tg9App)
+        Updates.init(this, "NineTailsFlip/tg9")
         Notifications.init(this)
         Tg.init(this)
         ConnectionService.startIfEnabled(this)

@@ -45,6 +45,13 @@ Keys are listed in the app itself: Settings → About → Key mapping.
 shares its MediaStore code with TG9's "send photo or video" screen through
 [nine-core](https://github.com/NineTailsFlip/nine-core).
 
+## Installing and updates
+
+Signed builds are published on [Releases](https://github.com/NineTailsFlip/tg9/releases). Install the first one by hand. After that, TG9 checks for a newer release once a day when its main screen opens and offers to update. Android asks you to confirm each update, and the first time it also asks you to allow TG9 to install apps. You can turn the check off, or run it now, in Settings → Updates.
+
+Releases are built by GitHub Actions from a `v<versionName>` tag. See
+[RELEASING.md](https://github.com/NineTailsFlip/.github/blob/main/RELEASING.md).
+
 ## Building
 
 You need JDK 17+, the Android SDK (platform 34, build-tools 34), NDK `27.2.12479018`, CMake,

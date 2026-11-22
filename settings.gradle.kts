@@ -20,6 +20,8 @@ rootProject.name = "tg9"
 // (git clone --recursive, or git submodule update --init).
 include(":core")
 project(":core").projectDir = file("nine-core/core")
+include(":update")
+project(":update").projectDir = file("nine-core/update")
 include(":kit")
 project(":kit").projectDir = file("nine-core/kit")
 

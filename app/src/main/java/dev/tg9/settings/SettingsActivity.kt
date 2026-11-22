@@ -8,6 +8,7 @@ import dev.tg9.notify.ConnectionService
 import dev.tg9.notify.Notifications
 import dev.tg9.tg.Tg
 import dev.tg9.tg.TgStore
+import io.github.ninetailsflip.update.updatesSection
 import life.furrer.nine.core.NineSurface
 import life.furrer.nine.core.settings.NineSettingsActivity
 import life.furrer.nine.core.settings.SettingsScreen
@@ -50,6 +51,7 @@ class SettingsActivity : NineSettingsActivity() {
                 set = { Prefs.setMessageFontSize(this@SettingsActivity, it) },
             )
         }
+        updatesSection(screen, this, ::refresh)
     }
 
     private fun accountLabel(): String {

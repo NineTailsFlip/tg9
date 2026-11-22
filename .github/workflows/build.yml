@@ -1,0 +1,22 @@
+# Tests, lint and a debug APK on every push and pull request; on a tag v<versionName>, a signed
+# release on GitHub that the app's updater offers to everyone who has it installed. The steps are
+# shared by all NineTailsFlip apps: https://github.com/NineTailsFlip/.github/blob/main/.github/workflows/android.yml
+name: Build
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  android:
+    uses: NineTailsFlip/.github/.github/workflows/android.yml@main
+    with:
+      app: tg9
+      tdlib: true
+    secrets: inherit

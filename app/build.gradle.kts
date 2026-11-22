@@ -29,7 +29,7 @@ android {
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "dev.tg9"
+        applicationId = "io.github.ninetailsflip.tg9"
         minSdk = 34
         targetSdk = 34
         versionCode = 3
@@ -113,6 +113,7 @@ android {
 
 dependencies {
     implementation(project(":core"))
+    implementation(project(":update"))
     implementation(project(":tdlib"))
     implementation(project(":kit"))
     testImplementation("junit:junit:4.13.2")
