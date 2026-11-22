@@ -100,7 +100,20 @@ for abi in $ABIS; do
   build_openssl "$abi"
   echo "==> libtdjni.so for $abi"
   build="$WORK/build-$abi"
+  case "$abi" in
+    arm64-v8a) triple=aarch64-linux-android ;;
+    armeabi-v7a) triple=arm-linux-androideabi ;;
+    x86_64) triple=x86_64-linux-android ;;
+    x86) triple=i686-linux-android ;;
+  esac
+  # Link the system's libz.so, which every Android ships. Left to itself, CMake's FindZLIB picks
+  # the NDK's static libz.a on some hosts (GitHub's Linux runners), whose objects carry LTO
+  # bitcode built with other flags than TDLib's -flto=thin, and the link fails with
+  # "conflicting values for EnableSplitLTOUnit".
   cmake -S "$TD_ANDROID" -B "$build" -G Ninja \
+    -DZLIB_USE_STATIC_LIBS=OFF \
+    -DZLIB_LIBRARY="$TOOLCHAIN/sysroot/usr/lib/$triple/$API_LEVEL/libz.so" \
+    -DZLIB_INCLUDE_DIR="$TOOLCHAIN/sysroot/usr/include" \
     -DCMAKE_TOOLCHAIN_FILE="$NDK/build/cmake/android.toolchain.cmake" \
     -DCMAKE_BUILD_TYPE=RelWithDebInfo \
     -DANDROID_ABI="$abi" \

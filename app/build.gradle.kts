@@ -106,6 +106,9 @@ android {
         // is set from string literals on purpose. Everything else lint reports is meant to be
         // fixed, and a warning fails the build.
         disable += "SetTextI18n"
+        // targetSdk 34 is deliberate: the Nine suite targets exactly the Android 14 keypad phones
+        // it's tested on. Lint only flags it where a newer platform is installed (CI runners).
+        disable += "OldTargetApi"
         warningsAsErrors = true
         abortOnError = true
     }
