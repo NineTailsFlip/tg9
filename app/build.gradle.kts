@@ -33,7 +33,7 @@ android {
         minSdk = 34
         targetSdk = 34
         versionCode = 3
-        versionName = "0.1.2"
+        versionName = "0.1.3"
         buildConfigField("int", "TG_API_ID", apiId)
         buildConfigField("String", "TG_API_HASH", "\"$apiHash\"")
     }
