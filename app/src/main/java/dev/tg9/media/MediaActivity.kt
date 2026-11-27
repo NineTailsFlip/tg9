@@ -26,6 +26,7 @@ import dev.tg9.tg.Content
 import dev.tg9.tg.Media
 import dev.tg9.tg.Tg
 import dev.tg9.tg.TgStore
+import dev.tg9.tg.updates
 import java.io.File
 import life.furrer.nine.core.ui.Dimens
 import life.furrer.nine.core.ui.HintBar
@@ -160,7 +161,7 @@ class MediaActivity : NineActivity() {
             },
         )
         image.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> applyMatrix() }
-        Tg.addListener(listener)
+        Tg.addListener(updates(TdApi.UpdateFile::class), listener)
         updateHint()
 
         val messageId = intent.getLongExtra(EXTRA_MESSAGE_ID, 0L)
@@ -312,9 +313,7 @@ class MediaActivity : NineActivity() {
             background = {
                 runCatching {
                     ImageDecoder.decodeDrawable(ImageDecoder.createSource(File(path))) { decoder, info, _ ->
-                        var sample = 1
-                        while (maxOf(info.size.width, info.size.height) / (sample * 2) >= target) sample *= 2
-                        decoder.setTargetSampleSize(sample)
+                        decoder.setTargetSampleSize(decodeSampleSize(info.size.width, info.size.height, target))
                     }
                 }.onFailure { Log.w("TG9", "decode image", it) }.getOrNull()
             },
@@ -355,20 +354,16 @@ class MediaActivity : NineActivity() {
 
     private fun applyMatrix() {
         val d = drawable ?: return
-        val dw = d.intrinsicWidth.toFloat()
-        val dh = d.intrinsicHeight.toFloat()
-        val vw = image.width.toFloat()
-        val vh = image.height.toFloat()
-        if (vw == 0f || vh == 0f || dw <= 0f || dh <= 0f) return
-        val fit = minOf(vw / dw, vh / dh)
-        val scale = if (zoomed) fit * ZOOM else fit
-        val maxPanX = ((dw * scale - vw) / 2).coerceAtLeast(0f)
-        val maxPanY = ((dh * scale - vh) / 2).coerceAtLeast(0f)
-        panX = panX.coerceIn(-maxPanX, maxPanX)
-        panY = panY.coerceIn(-maxPanY, maxPanY)
+        val placed = place(
+            d.intrinsicWidth.toFloat(), d.intrinsicHeight.toFloat(),
+            image.width.toFloat(), image.height.toFloat(),
+            zoomed, ZOOM, panX, panY,
+        ) ?: return
+        panX = placed.panX
+        panY = placed.panY
         image.imageMatrix = Matrix().apply {
-            postScale(scale, scale)
-            postTranslate((vw - dw * scale) / 2 + panX, (vh - dh * scale) / 2 + panY)
+            postScale(placed.scale, placed.scale)
+            postTranslate(placed.left, placed.top)
         }
     }
 
@@ -425,11 +420,7 @@ class MediaActivity : NineActivity() {
         ) { found ->
             navigating = false
             if (isDestroyed || message?.id != current.id) return@request
-            val next = if (direction < 0) {
-                found.messages.filter { it.id < current.id }.maxByOrNull { it.id }
-            } else {
-                found.messages.filter { it.id > current.id }.minByOrNull { it.id }
-            }
+            val next = neighbour(found.messages, current.id, direction)
             if (next == null) {
                 hintBar.setText(if (direction < 0) "this is the oldest one" else "this is the newest one")
             } else {

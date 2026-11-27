@@ -362,16 +362,7 @@ class GalleryActivity : NineActivity() {
     }
 
     private fun post(contents: List<TdApi.InputMessageContent>) {
-        val reply = replyTo.takeIf { it != 0L }?.let { id -> TdApi.InputMessageReplyToMessage().apply { messageId = id } }
-        val function: TdApi.Function<*> = if (contents.size == 1) {
-            TdApi.SendMessage().apply {
-                chatId = this@GalleryActivity.chatId
-                replyTo = reply
-                inputMessageContent = contents.first()
-            }
-        } else {
-            TdApi.SendMessageAlbum(chatId, null, reply, null, contents.toTypedArray())
-        }
+        val function = Outgoing.sendFunction(chatId, replyTo, contents)
         setSendingText("sending…")
         // Back to the chat once TDLib has taken it: from there on it shows as a pending message,
         // and its upload progress is TDLib's business. A refusal keeps the gallery open to say so.

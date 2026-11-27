@@ -11,8 +11,14 @@ import java.io.File
 import java.util.Locale
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.reflect.KClass
 import org.drinkless.tdlib.Client
 import org.drinkless.tdlib.TdApi
+
+/** The update types a [Tg.Listener] reads. Top-level rather than in [Tg], so declaring a set
+ *  (TgStore.UPDATES, say) never starts [Tg]'s own initialization half-way through another's. */
+fun updates(vararg types: KClass<out TdApi.Update>): Set<Class<out TdApi.Update>> =
+    types.mapTo(HashSet()) { it.java }
 
 /** The one TDLib client for the whole process, and the only place that talks to it.
  *
@@ -21,13 +27,17 @@ import org.drinkless.tdlib.TdApi
  *  need no locking — the same "one owner thread" rule the Nine apps follow for their providers.
  *
  *  Updates cross over in batches, not one Handler message each: TDLib sends thousands of them
- *  right after start, and the main thread is also the one reading the keypad. Updates TG9 never
- *  reads are dropped on TDLib's thread ([isUsed]), the rest are queued, and the main thread drains
- *  the queue in slices of at most [DRAIN_BUDGET_MS], yielding between slices so key presses and
- *  frames are never stuck behind a whole sync.
+ *  right after start, and the main thread is also the one reading the keypad. Updates nothing
+ *  reads right now are dropped on TDLib's thread ([isUsed]), the rest are queued, and the main
+ *  thread drains the queue in slices of at most [DRAIN_BUDGET_MS], yielding between slices so key
+ *  presses and frames are never stuck behind a whole sync.
  *
- *  Screens subscribe with [addListener] while resumed and get every update after [TgStore] has
- *  already applied it, so a listener reading the store always sees the state the update produced. */
+ *  Every listener says which update types it reads ([addListener]) and gets only those, after
+ *  [TgStore] has already applied them, so a listener reading the store always sees the state the
+ *  update produced. What's read is [TgStore.UPDATES] plus the types of the listeners subscribed
+ *  at the moment: a chat's new messages cross over only while that chat is open. Declaring the
+ *  types next to the `when` that reads them, rather than in one list here, is what keeps a new
+ *  listener from silently getting nothing. */
 object Tg {
     private const val TAG = "TG9"
     private const val DRAIN_BUDGET_MS = 8L
@@ -71,11 +81,21 @@ object Tg {
         fun onUpdate(update: TdApi.Update)
     }
 
-    private val listeners = LinkedHashSet<Listener>()
+    /** What [Tg] itself reads, besides [TgStore]. */
+    private val OWN = updates(TdApi.UpdateAuthorizationState::class, TdApi.UpdateConnectionState::class)
+
+    private class Subscription(val types: Set<Class<out TdApi.Update>>, val listener: Listener)
+
+    private val listeners = LinkedHashMap<Listener, Subscription>()
 
     /** A copy of [listeners] taken on every add/remove, so dispatch neither allocates per update
      *  nor breaks when a listener removes itself (a screen finishing) from inside its callback. */
-    private var listenerSnapshot: Array<Listener> = emptyArray()
+    private var listenerSnapshot: Array<Subscription> = emptyArray()
+
+    /** Every type someone reads: [TgStore.UPDATES], [OWN] and the listeners' types. Rebuilt on the
+     *  main thread on every add/remove, read on TDLib's thread by [isUsed]. */
+    @Volatile
+    private var wanted: Set<Class<out TdApi.Update>> = TgStore.UPDATES + OWN
 
     /** Updates and request results, in the order TDLib produced them: a result must not overtake
      *  an update TDLib sent before it (sendMessage's result before its updateNewMessage, say). */
@@ -83,9 +103,12 @@ object Tg {
     private val drainScheduled = AtomicBoolean(false)
     private val drain = Runnable { drainPending() }
 
-    /** Process-wide listeners that live as long as the client (notifications, the connection
-     *  service), as opposed to a screen's [addListener] that comes and goes with onResume/onPause. */
-    private val globalListeners = mutableListOf<Listener>()
+    /** Process-wide listeners that live as long as the client (notifications), as opposed to a
+     *  screen's [addListener] that comes and goes with the screen. */
+    private val globalListeners = mutableListOf<Subscription>()
+
+    /** Whether a TG9 screen is in front ([setOnline]). */
+    private var online = false
 
     fun init(context: Context) {
         if (client != null) return
@@ -102,17 +125,41 @@ object Tg {
         )
     }
 
-    fun addListener(listener: Listener) {
-        if (listeners.add(listener)) listenerSnapshot = listeners.toTypedArray()
+    /** [listener] gets the updates of [types] until [removeListener]. Main thread. */
+    fun addListener(types: Set<Class<out TdApi.Update>>, listener: Listener) {
+        if (listener in listeners) return
+        listeners[listener] = Subscription(types, listener)
+        subscriptionsChanged()
     }
 
     fun removeListener(listener: Listener) {
-        if (listeners.remove(listener)) listenerSnapshot = listeners.toTypedArray()
+        if (listeners.remove(listener) != null) subscriptionsChanged()
     }
 
-    fun addGlobalListener(listener: Listener) {
-        globalListeners += listener
+    fun addGlobalListener(types: Set<Class<out TdApi.Update>>, listener: Listener) {
+        globalListeners += Subscription(types, listener)
+        subscriptionsChanged()
     }
+
+    private fun subscriptionsChanged() {
+        listenerSnapshot = listeners.values.toTypedArray()
+        val all = HashSet(TgStore.UPDATES)
+        all += OWN
+        globalListeners.forEach { all += it.types }
+        listenerSnapshot.forEach { all += it.types }
+        wanted = all
+    }
+
+    /** Telegram's "online" status: on while a TG9 screen is in front, off otherwise (the
+     *  background connection doesn't count). Contacts see it as "online", and TDLib uses it to
+     *  decide what's worth a notification. Set by [dev.tg9.TG9Application]. */
+    fun setOnline(value: Boolean) {
+        if (online == value) return
+        online = value
+        if (isReady) sendOnline()
+    }
+
+    private fun sendOnline() = send(TdApi.SetOption("online", TdApi.OptionValueBoolean(online)))
 
     /** Runs [action] once TDLib is signed in and ready for requests — at once if it already is,
      *  else on [TdApi.AuthorizationStateReady] — with false instead if that hasn't happened within
@@ -140,7 +187,7 @@ object Tg {
                 }
             }
         }
-        addListener(listener)
+        addListener(OWN, listener)
         main.postDelayed(timeout, timeoutMs)
     }
 
@@ -199,48 +246,23 @@ object Tg {
         if (pending.isNotEmpty()) scheduleDrain()
     }
 
-    private fun dispatch(update: TdApi.Update) {
+    /** Main thread; internal for tests. */
+    internal fun dispatch(update: TdApi.Update) {
         when (update) {
             is TdApi.UpdateAuthorizationState -> onAuthorizationState(update.authorizationState)
             is TdApi.UpdateConnectionState -> connectionState = update.state
             else -> {}
         }
         TgStore.apply(update)
-        for (listener in globalListeners) listener.onUpdate(update)
-        for (listener in listenerSnapshot) listener.onUpdate(update)
+        val type = update.javaClass
+        for (s in globalListeners) if (type in s.types) s.listener.onUpdate(update)
+        for (s in listenerSnapshot) if (type in s.types) s.listener.onUpdate(update)
     }
 
-    /** Every update type something in TG9 reads — [TgStore], [dev.tg9.notify.Notifications] or a
-     *  screen's listener. Anything else (options, stickers, folders, supergroup info, reactions,
-     *  ...) is dropped before it costs the main thread anything. A new listener that needs another
-     *  type must add it here. */
-    internal fun isUsed(update: TdApi.Update): Boolean = when (update) {
-        is TdApi.UpdateAuthorizationState,
-        is TdApi.UpdateConnectionState,
-        is TdApi.UpdateNewChat,
-        is TdApi.UpdateChatTitle,
-        is TdApi.UpdateChatLastMessage,
-        is TdApi.UpdateChatPosition,
-        is TdApi.UpdateChatReadInbox,
-        is TdApi.UpdateChatReadOutbox,
-        is TdApi.UpdateChatIsMarkedAsUnread,
-        is TdApi.UpdateChatNotificationSettings,
-        is TdApi.UpdateChatUnreadMentionCount,
-        is TdApi.UpdateChatDraftMessage,
-        is TdApi.UpdateUser,
-        is TdApi.UpdateUserStatus,
-        is TdApi.UpdateFile,
-        is TdApi.UpdateNewMessage,
-        is TdApi.UpdateMessageSendSucceeded,
-        is TdApi.UpdateMessageSendFailed,
-        is TdApi.UpdateMessageContent,
-        is TdApi.UpdateMessageEdited,
-        is TdApi.UpdateDeleteMessages,
-        is TdApi.UpdateNotificationGroup,
-        is TdApi.UpdateActiveNotifications,
-        -> true
-        else -> false
-    }
+    /** Whether anything reads [update] right now (see the class comment). Anything else (options,
+     *  stickers, folders, supergroup info, reactions, a closed chat's messages, ...) is dropped
+     *  before it costs the main thread anything. Any thread. */
+    internal fun isUsed(update: TdApi.Update): Boolean = update.javaClass in wanted
 
     private fun onAuthorizationState(state: TdApi.AuthorizationState) {
         authState = state
@@ -289,6 +311,8 @@ object Tg {
         // that already respects each chat's mute settings.
         send(TdApi.SetOption("notification_group_count_max", TdApi.OptionValueInteger(10)))
         send(TdApi.SetOption("notification_group_size_max", TdApi.OptionValueInteger(6)))
+        Storage.options().forEach { send(it) }
+        sendOnline()
         request<TdApi.User>(TdApi.GetMe()) { me ->
             myUserId = me.id
             TgStore.apply(TdApi.UpdateUser(me))

@@ -1,6 +1,8 @@
 package dev.tg9
 
+import android.app.Activity
 import android.app.Application
+import android.os.Bundle
 import dev.tg9.notify.ConnectionService
 import dev.tg9.notify.Notifications
 import dev.tg9.settings.SettingsActivity
@@ -19,7 +21,28 @@ class TG9Application : Application() {
         Notifications.init(this)
         Tg.init(this)
         ConnectionService.startIfEnabled(this)
+        registerActivityLifecycleCallbacks(OnlineWhileVisible())
     }
+}
+
+/** Telegram's "online": on while any TG9 screen is started (visible), off once the last one
+ *  stops. Started rather than resumed, so going from one screen to the next doesn't flicker it. */
+private class OnlineWhileVisible : Application.ActivityLifecycleCallbacks {
+    private var started = 0
+
+    override fun onActivityStarted(activity: Activity) {
+        if (started++ == 0) Tg.setOnline(true)
+    }
+
+    override fun onActivityStopped(activity: Activity) {
+        if (--started == 0) Tg.setOnline(false)
+    }
+
+    override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {}
+    override fun onActivityResumed(activity: Activity) {}
+    override fun onActivityPaused(activity: Activity) {}
+    override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) {}
+    override fun onActivityDestroyed(activity: Activity) {}
 }
 
 private val tg9App = NineApp(

@@ -59,7 +59,7 @@ private const val SAVE_DOWNLOAD_PRIORITY = 16
 class ChatActivity : NineActivity() {
 
     private var chatId = 0L
-    private val messages = HashMap<Long, TdApi.Message>()
+    private lateinit var messages: ChatTimeline
     private var rows: List<MessageRow> = emptyList()
     private var reachedStart = false
     private var loadingHistory = false
@@ -79,6 +79,18 @@ class ChatActivity : NineActivity() {
 
     /** Read once per screen; a change in Settings recreates the screen in onResume. */
     private var fontSize = Prefs.DEFAULT_MESSAGE_FONT_SIZE
+
+    /** Updates that arrive together (TDLib sends them in bursts) rebuild the rows once, in a
+     *  posted pass; [selectNewestAfterRebuild] carries "the user was at the newest message" over to
+     *  it, judged against the rows as they were before the burst. */
+    private var rebuildPosted = false
+    private var selectNewestAfterRebuild = false
+    private val postedRebuild = Runnable {
+        rebuildPosted = false
+        rebuildRows()
+        if (selectNewestAfterRebuild) rowListView.selectLastSelectable()
+        selectNewestAfterRebuild = false
+    }
 
     /** Each row's height, measured once per rebuild. RowListView asks for every row's height on
      *  every key press, and measuring message text each time (a StaticLayout per message, hundreds
@@ -104,6 +116,7 @@ class ChatActivity : NineActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         chatId = intent.getLongExtra(EXTRA_CHAT_ID, 0L)
+        messages = ChatTimeline(chatId)
         fontSize = Prefs.messageFontSize(this)
 
         title = TextView(this).apply {
@@ -167,7 +180,7 @@ class ChatActivity : NineActivity() {
         // from RecordVoiceActivity, or anything that arrives while a photo or Settings is on top,
         // lands while this screen is paused, and onResume only reloads an empty history. Marking
         // messages viewed is still gated on [resumed].
-        Tg.addListener(listener)
+        Tg.addListener(ChatTimeline.UPDATES, listener)
         current = WeakReference(this)
     }
 
@@ -181,7 +194,7 @@ class ChatActivity : NineActivity() {
         Tg.send(TdApi.OpenChat(chatId))
         VoicePlayer.onChange = { rowListView.notifyDataChanged() }
         Notifications.cancelChat(this, chatId)
-        if (messages.isEmpty()) loadHistory(initial = true) else markViewed()
+        if (messages.isEmpty) loadHistory(initial = true) else markViewed()
     }
 
     override fun onPause() {
@@ -196,6 +209,7 @@ class ChatActivity : NineActivity() {
     override fun onDestroy() {
         super.onDestroy()
         Tg.removeListener(listener)
+        rowListView.removeCallbacks(postedRebuild)
         if (current?.get() === this) current = null
         if (isFinishing && VoicePlayer.chatId == chatId) VoicePlayer.stop()
     }
@@ -235,16 +249,14 @@ class ChatActivity : NineActivity() {
     private fun loadHistory(initial: Boolean) {
         if (loadingHistory || reachedStart) return
         loadingHistory = true
-        val from = messages.keys.minOrNull() ?: 0L
+        val from = messages.oldestId()
         Tg.request<TdApi.Messages>(
             TdApi.GetChatHistory(chatId, from, 0, HISTORY_PAGE, false),
             onError = { loadingHistory = false },
         ) { result ->
             loadingHistory = false
-            val fresh = result.messages.filter { it.id !in messages }
-            if (fresh.isEmpty()) reachedStart = true
             val anchor = selectedEntry()?.id
-            fresh.forEach { messages[it.id] = it }
+            if (messages.addHistory(result.messages) == 0) reachedStart = true
             rebuildRows()
             when {
                 initial && rows.isNotEmpty() && anchor == null -> rowListView.selectLastSelectable()
@@ -260,12 +272,12 @@ class ChatActivity : NineActivity() {
     private fun rebuildRows() {
         val chat = chat()
         rows = buildMessageRows(
-            messages.values.toList(),
+            messages.all(),
             ChatContext(
                 showSenders = chat != null && TgStore.isGroup(chat),
                 lastReadOutboxId = chat?.lastReadOutboxMessageId ?: 0L,
                 senderName = TgStore::senderName,
-                findMessage = { messages[it] },
+                findMessage = messages::get,
             ),
             LocalDate.now(),
         )
@@ -280,46 +292,35 @@ class ChatActivity : NineActivity() {
     }
 
     /** Everything loaded counts as seen while the chat is on screen — the same rule M9 applies
-     *  ("opening a thread is what read means"). */
+     *  ("opening a thread is what read means"). Each message is reported once. */
     private fun markViewed() {
-        if (!resumed || messages.isEmpty()) return
-        Tg.send(TdApi.ViewMessages(chatId, messages.keys.toLongArray(), TdApi.MessageSourceChatHistory(), true))
+        if (!resumed) return
+        val ids = messages.takeUnviewed()
+        if (ids.isNotEmpty()) Tg.send(TdApi.ViewMessages(chatId, ids, TdApi.MessageSourceChatHistory(), true))
     }
 
     private fun onUpdate(update: TdApi.Update) {
-        when (update) {
-            is TdApi.UpdateNewMessage -> if (update.message.chatId == chatId) {
-                val wasAtNewest = rowListView.selectedIndex >= rows.size - 1
-                messages[update.message.id] = update.message
-                rebuildRows()
-                if (wasAtNewest || update.message.isOutgoing) rowListView.selectLastSelectable()
+        val atNewest = rowListView.selectedIndex >= rows.size - 1
+        when (messages.apply(update)) {
+            ChatTimeline.Change.NONE -> {}
+            ChatTimeline.Change.ROWS -> scheduleRebuild(selectNewest = false)
+            ChatTimeline.Change.NEW_INCOMING -> {
+                scheduleRebuild(selectNewest = atNewest)
                 markViewed()
             }
-            is TdApi.UpdateMessageSendSucceeded -> if (update.message.chatId == chatId) {
-                messages.remove(update.oldMessageId)
-                messages[update.message.id] = update.message
-                rebuildRows()
+            ChatTimeline.Change.NEW_OUTGOING -> {
+                scheduleRebuild(selectNewest = true)
+                markViewed()
             }
-            is TdApi.UpdateMessageSendFailed -> if (update.message.chatId == chatId) {
-                messages.remove(update.oldMessageId)
-                messages[update.message.id] = update.message
-                rebuildRows()
-            }
-            is TdApi.UpdateMessageContent -> if (update.chatId == chatId) {
-                messages[update.messageId]?.let { it.content = update.newContent; rebuildRows() }
-            }
-            is TdApi.UpdateMessageEdited -> if (update.chatId == chatId) {
-                messages[update.messageId]?.let { it.editDate = update.editDate; rebuildRows() }
-            }
-            is TdApi.UpdateDeleteMessages -> if (update.chatId == chatId && update.isPermanent) {
-                update.messageIds.forEach { messages.remove(it) }
-                rebuildRows()
-            }
-            is TdApi.UpdateChatReadOutbox -> if (update.chatId == chatId) rebuildRows()
-            is TdApi.UpdateChatTitle -> if (update.chatId == chatId) renderHeader()
-            is TdApi.UpdateUser, is TdApi.UpdateUserStatus -> renderHeader()
-            else -> {}
+            ChatTimeline.Change.HEADER -> renderHeader()
         }
+    }
+
+    private fun scheduleRebuild(selectNewest: Boolean) {
+        selectNewestAfterRebuild = selectNewestAfterRebuild || selectNewest
+        if (rebuildPosted) return
+        rebuildPosted = true
+        rowListView.post(postedRebuild)
     }
 
     // ── Selection helpers ───────────────────────────────────────────────────────────────────

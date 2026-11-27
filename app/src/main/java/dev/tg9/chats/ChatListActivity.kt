@@ -15,6 +15,8 @@ import dev.tg9.chat.ChatActivity
 import dev.tg9.notify.Notifications
 import dev.tg9.tg.Tg
 import dev.tg9.tg.TgStore
+import dev.tg9.tg.updates
+import java.time.LocalDate
 import life.furrer.nine.core.settings.openNineSettings
 import life.furrer.nine.core.ui.Dimens
 import life.furrer.nine.core.ui.HintBar
@@ -28,7 +30,6 @@ import life.furrer.nine.core.ui.RowListView
 import life.furrer.nine.core.ui.SearchField
 import life.furrer.nine.core.ui.dp
 import life.furrer.nine.core.ui.relaunch
-import java.time.LocalDate
 import org.drinkless.tdlib.TdApi
 
 /** Up/Down/OK are list navigation and `*`/`#` are this screen's menu and unread filter, so none
@@ -89,6 +90,14 @@ class ChatListActivity : NineActivity() {
     }
     private val rowHeightDp: Int get() = chatRowHeightDp(fontSize)
 
+    /** What [listener] reads. */
+    private val UPDATES = updates(
+        TdApi.UpdateAuthorizationState::class, TdApi.UpdateConnectionState::class,
+        TdApi.UpdateNewChat::class, TdApi.UpdateChatLastMessage::class, TdApi.UpdateChatPosition::class,
+        TdApi.UpdateChatReadInbox::class, TdApi.UpdateChatTitle::class, TdApi.UpdateChatIsMarkedAsUnread::class,
+        TdApi.UpdateChatNotificationSettings::class, TdApi.UpdateChatDraftMessage::class, TdApi.UpdateUser::class,
+    )
+
     private val listener = Tg.Listener { update ->
         when (update) {
             is TdApi.UpdateAuthorizationState -> if (Tg.needsLogin) goToLogin() else loadMoreChats()
@@ -146,7 +155,7 @@ class ChatListActivity : NineActivity() {
 
     override fun onResume() {
         super.onResume()
-        Tg.addListener(listener)
+        Tg.addListener(UPDATES, listener)
         Notifications.ensurePermission(this)
         if (Tg.needsLogin) {
             goToLogin()

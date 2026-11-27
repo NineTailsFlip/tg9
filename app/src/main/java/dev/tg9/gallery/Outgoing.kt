@@ -17,7 +17,7 @@ import org.drinkless.tdlib.TdApi
  *  keypad phone's slow connection. A video is sent as it is, with a small thumbnail, since TDLib
  *  makes none and recipients would otherwise see a black square until it loads. */
 object Outgoing {
-    private const val MAX_PHOTO_SIDE = 2560
+    const val MAX_PHOTO_SIDE = 2560
     private const val JPEG_QUALITY = 87
     private const val THUMB_SIDE = 320
     /** TDLib uploads straight from these files and keeps pointing at them, so they stay a day. */
@@ -29,13 +29,33 @@ object Outgoing {
         return if (item.isVideo) video(context, item, dir) else photo(context, item, dir)
     }
 
+    /** One message for one item, an album for several; a reply when [replyTo] isn't 0. */
+    fun sendFunction(chatId: Long, replyTo: Long, contents: List<TdApi.InputMessageContent>): TdApi.Function<*> {
+        require(contents.isNotEmpty())
+        val reply = replyTo.takeIf { it != 0L }?.let { id -> TdApi.InputMessageReplyToMessage().apply { messageId = id } }
+        return if (contents.size == 1) {
+            TdApi.SendMessage().apply {
+                this.chatId = chatId
+                this.replyTo = reply
+                inputMessageContent = contents.first()
+            }
+        } else {
+            TdApi.SendMessageAlbum(chatId, null, reply, null, contents.toTypedArray())
+        }
+    }
+
+    /** Halves a [width]×[height] photo until its longer side is at most [MAX_PHOTO_SIDE]. */
+    fun photoSampleSize(width: Int, height: Int): Int {
+        var sample = 1
+        while (maxOf(width, height) / sample > MAX_PHOTO_SIDE) sample *= 2
+        return sample
+    }
+
     private fun photo(context: Context, item: GalleryItem, dir: File): TdApi.InputMessagePhoto {
         val source = ImageDecoder.createSource(context.contentResolver, GalleryStore.contentUri(item))
         val bitmap = ImageDecoder.decodeBitmap(source) { decoder, info, _ ->
             decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
-            var sample = 1
-            while (maxOf(info.size.width, info.size.height) / sample > MAX_PHOTO_SIDE) sample *= 2
-            decoder.setTargetSampleSize(sample)
+            decoder.setTargetSampleSize(photoSampleSize(info.size.width, info.size.height))
         }
         val out = File(dir, "photo-${item.id}-${System.currentTimeMillis()}.jpg")
         out.outputStream().use { bitmap.compress(Bitmap.CompressFormat.JPEG, JPEG_QUALITY, it) }

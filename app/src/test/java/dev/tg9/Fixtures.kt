@@ -36,8 +36,10 @@ object Fixtures {
         date: Int,
         outgoing: Boolean = false,
         fromUser: Long = 1L,
+        chatId: Long = 0L,
     ): TdApi.Message = TdApi.Message().apply {
         this.id = id
+        this.chatId = chatId
         this.content = content
         this.date = date
         this.isOutgoing = outgoing

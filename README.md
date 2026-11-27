@@ -34,14 +34,17 @@ Telegram's official client library. Part of [NineTailsFlip](https://github.com/N
 - **Notifications** through TDLib, following each chat's mute settings, with "Mark as read".
 - **No Google push needed:** a background connection (foreground service), which can be turned
   off.
+- **A cache that stays small:** downloaded media and files not opened for 3 days, and the oldest
+  beyond 200 MB, are deleted once a day (they download again when opened); Settings → Storage
+  shows the size and clears it.
 - **Updates** from GitHub Releases.
 
 ## Installation
 
 Download the APK from [Releases](https://github.com/NineTailsFlip/tg9/releases/latest)
 (`arm64-v8a` for most keypad phones, `armeabi-v7a` for older 32-bit ones) and install it.
-After that TG9 checks for a new release once a day and offers it; Android asks you to confirm
-each update. Settings → Updates turns the check off or runs it now.
+After that TG9 checks for a new release once a day and offers it; OK on its screen installs it,
+without Android's own confirmation. Settings → Updates turns the check off or runs it now.
 
 ## Usage
 

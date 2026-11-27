@@ -14,6 +14,7 @@ import dev.tg9.Prefs
 import dev.tg9.R
 import dev.tg9.chats.ChatListActivity
 import dev.tg9.tg.Tg
+import dev.tg9.tg.updates
 import java.io.File
 import org.drinkless.tdlib.TdApi
 
@@ -41,7 +42,7 @@ class ConnectionService : Service() {
         super.onCreate()
         Tg.init(this)
         startForeground(NOTIFICATION_ID, notification(), ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
-        Tg.addListener(listener)
+        Tg.addListener(UPDATES, listener)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_STICKY
@@ -79,6 +80,8 @@ class ConnectionService : Service() {
 
     companion object {
         private const val NOTIFICATION_ID = 1
+
+        private val UPDATES = updates(TdApi.UpdateConnectionState::class, TdApi.UpdateAuthorizationState::class)
 
         /** Starts the service when the user wants it and there's an account to stay connected
          *  for (TDLib's database exists). Android refuses a foreground-service start from the

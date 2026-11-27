@@ -16,6 +16,7 @@ import dev.tg9.chats.ChatListActivity
 import dev.tg9.tg.Content
 import dev.tg9.tg.Tg
 import dev.tg9.tg.TgStore
+import dev.tg9.tg.updates
 import life.furrer.nine.core.prefs.NinePrefs
 import org.drinkless.tdlib.TdApi
 
@@ -33,6 +34,12 @@ object Notifications {
     private const val KEY_ASKED_PERMISSION = "asked_notification_permission"
     private const val REQUEST_POST_NOTIFICATIONS = 400
     private const val MAX_LINES = 6
+
+    private val UPDATES = updates(
+        TdApi.UpdateActiveNotifications::class,
+        TdApi.UpdateNotificationGroup::class,
+        TdApi.UpdateAuthorizationState::class,
+    )
 
     private lateinit var appContext: Context
 
@@ -60,25 +67,29 @@ object Notifications {
                 setShowBadge(false)
             },
         )
-        Tg.addGlobalListener { update ->
-            when (update) {
-                is TdApi.UpdateActiveNotifications -> {
-                    groups.clear()
-                    update.groups.forEach { g -> groups[g.id] = Group(g.chatId, g.notifications.toMutableList()) }
-                    groups.keys.forEach(::render)
-                }
-                is TdApi.UpdateNotificationGroup -> {
-                    val group = groups.getOrPut(update.notificationGroupId) { Group(update.chatId, mutableListOf()) }
-                    group.notifications.removeAll { it.id in update.removedNotificationIds }
-                    group.notifications.addAll(update.addedNotifications)
-                    render(update.notificationGroupId)
-                }
-                is TdApi.UpdateAuthorizationState -> if (update.authorizationState is TdApi.AuthorizationStateLoggingOut) {
-                    groups.clear()
-                    manager.cancelAll()
-                }
-                else -> {}
+        Tg.addGlobalListener(UPDATES, ::onUpdate)
+    }
+
+    /** Mirrors TDLib's notification groups. Main thread; called by [Tg], and by tests. */
+    internal fun onUpdate(update: TdApi.Update) {
+        when (update) {
+            is TdApi.UpdateActiveNotifications -> {
+                groups.clear()
+                update.groups.forEach { g -> groups[g.id] = Group(g.chatId, g.notifications.toMutableList()) }
+                // A copy: render drops a group left empty.
+                groups.keys.toList().forEach(::render)
             }
+            is TdApi.UpdateNotificationGroup -> {
+                val group = groups.getOrPut(update.notificationGroupId) { Group(update.chatId, mutableListOf()) }
+                group.notifications.removeAll { it.id in update.removedNotificationIds }
+                group.notifications.addAll(update.addedNotifications)
+                render(update.notificationGroupId)
+            }
+            is TdApi.UpdateAuthorizationState -> if (update.authorizationState is TdApi.AuthorizationStateLoggingOut) {
+                groups.clear()
+                appContext.getSystemService(NotificationManager::class.java).cancelAll()
+            }
+            else -> {}
         }
     }
 

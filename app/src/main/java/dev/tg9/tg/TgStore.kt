@@ -9,9 +9,37 @@ import org.drinkless.tdlib.TdApi
  *
  *  Main thread only (see [Tg]). */
 object TgStore {
+    /** At most this many [files] are kept. Chats and users stay: TDLib announces each only once,
+     *  and there are as many as the account has. Files come and go with every thumbnail scrolled
+     *  past, and with the background connection the process lives for weeks. */
+    const val MAX_FILES = 1000
+
+    /** The update types [apply] reads. */
+    val UPDATES = updates(
+        TdApi.UpdateNewChat::class,
+        TdApi.UpdateChatTitle::class,
+        TdApi.UpdateChatLastMessage::class,
+        TdApi.UpdateChatPosition::class,
+        TdApi.UpdateChatReadInbox::class,
+        TdApi.UpdateChatReadOutbox::class,
+        TdApi.UpdateChatIsMarkedAsUnread::class,
+        TdApi.UpdateChatNotificationSettings::class,
+        TdApi.UpdateChatUnreadMentionCount::class,
+        TdApi.UpdateChatDraftMessage::class,
+        TdApi.UpdateUser::class,
+        TdApi.UpdateUserStatus::class,
+        TdApi.UpdateFile::class,
+    )
+
     val chats = HashMap<Long, TdApi.Chat>()
     val users = HashMap<Long, TdApi.User>()
-    val files = HashMap<Int, TdApi.File>()
+
+    /** The latest state of the files seen lately, least recently used first: [latest] reading one
+     *  counts as a use, so a download on screen is never the one dropped. A dropped file is only
+     *  forgotten here; its next updateFile brings it back. */
+    val files: MutableMap<Int, TdApi.File> = object : LinkedHashMap<Int, TdApi.File>(64, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Int, TdApi.File>?): Boolean = size > MAX_FILES
+    }
 
     /** Bumped on every change that can move or relabel a chat in the main list, so a screen can
      *  tell "something in the list changed" from a plain counter instead of diffing. */

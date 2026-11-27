@@ -113,6 +113,19 @@ class TgStoreTest {
         assertTrue(TgStore.latest(stale).local.isDownloadingCompleted)
     }
 
+    @Test
+    fun onlyTheMostRecentlyUsedFilesAreKept() {
+        fun file(id: Int) = TdApi.File().apply { this.id = id; local = TdApi.LocalFile() }
+        for (id in 1..TgStore.MAX_FILES) TgStore.apply(TdApi.UpdateFile(file(id)))
+        // Reading file 1 counts as using it, so file 2 is now the oldest.
+        TgStore.latest(file(1))
+        TgStore.apply(TdApi.UpdateFile(file(TgStore.MAX_FILES + 1)))
+        assertEquals(TgStore.MAX_FILES, TgStore.files.size)
+        assertTrue(1 in TgStore.files)
+        assertFalse(2 in TgStore.files)
+        assertTrue(TgStore.MAX_FILES + 1 in TgStore.files)
+    }
+
     private fun user(id: Long, first: String, last: String, username: String? = null) = TdApi.User().apply {
         this.id = id
         firstName = first

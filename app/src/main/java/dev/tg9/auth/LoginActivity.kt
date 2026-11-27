@@ -8,14 +8,15 @@ import android.view.KeyEvent
 import android.view.inputmethod.InputMethodManager
 import android.view.View
 import android.view.ViewGroup
-import dev.tg9.ui.KeyEditText
-import dev.tg9.ui.SUBMIT_KEYS
-import dev.tg9.ui.consumeAndActOnUp
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
 import dev.tg9.chats.ChatListActivity
 import dev.tg9.tg.Tg
+import dev.tg9.tg.updates
+import dev.tg9.ui.KeyEditText
+import dev.tg9.ui.SUBMIT_KEYS
+import dev.tg9.ui.consumeAndActOnUp
 import life.furrer.nine.core.settings.openNineSettings
 import life.furrer.nine.core.ui.Dimens
 import life.furrer.nine.core.ui.HintBar
@@ -108,7 +109,7 @@ class LoginActivity : NineActivity() {
 
     override fun onResume() {
         super.onResume()
-        Tg.addListener(listener)
+        Tg.addListener(updates(TdApi.UpdateAuthorizationState::class), listener)
         render()
     }
 

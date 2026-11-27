@@ -11,6 +11,7 @@ import android.view.Gravity
 import android.view.ViewGroup
 import android.widget.LinearLayout
 import android.widget.TextView
+import java.lang.ref.WeakReference
 import life.furrer.nine.core.ui.Dimens
 import life.furrer.nine.core.ui.Palette
 import life.furrer.nine.core.ui.dp
@@ -30,22 +31,32 @@ private const val SMALL_TEXT_SP = 11f
 /** Telegram's own accent for names in groups, pastel like the rest of the suite. */
 private const val SENDER_COLOR = 0xFF8AB4F8.toInt()
 
+/** How many texts' heights a [Measurer] remembers. */
+private const val MAX_MEASURED = 2000
+
+/** Measures message text the way [MessageRowView] lays it out. A chat rebuilds its rows on every
+ *  new message, edit or read receipt, and a StaticLayout per message per rebuild was most of the
+ *  cost of a long chat; a text keeps its height, so each one is measured once. */
 private class Measurer(context: Context, val fontSizeSp: Int) {
     private val paint = TextPaint(TextView(context).apply { textSize = fontSizeSp.toFloat() }.paint)
     private val widthPx = (context.resources.displayMetrics.widthPixels - 2 * context.dp(Dimens.SIDE_PADDING_DP)).coerceAtLeast(1)
+    private val heights = object : LinkedHashMap<String, Int>(256, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Int>?): Boolean = size > MAX_MEASURED
+    }
 
-    fun textHeightPx(text: String): Int {
+    fun textHeightPx(text: String): Int = heights.getOrPut(text) {
         val layout = StaticLayout.Builder.obtain(text, 0, text.length, paint, widthPx).build()
         val lines = layout.lineCount.coerceIn(1, MAX_LINES)
-        return layout.getLineBottom(lines - 1)
+        layout.getLineBottom(lines - 1)
     }
 }
 
-private var cached: Pair<Context, Measurer>? = null
+/** The last screen's measurer. Weakly: holding the screen itself kept a closed chat in memory. */
+private var cached: Pair<WeakReference<Context>, Measurer>? = null
 
 private fun measurer(context: Context, fontSizeSp: Int): Measurer {
-    cached?.let { (c, m) -> if (c === context && m.fontSizeSp == fontSizeSp) return m }
-    return Measurer(context, fontSizeSp).also { cached = context to it }
+    cached?.let { (c, m) -> if (c.get() === context && m.fontSizeSp == fontSizeSp) return m }
+    return Measurer(context, fontSizeSp).also { cached = WeakReference(context) to it }
 }
 
 fun messageRowHeightDp(context: Context, row: MessageRow, fontSizeSp: Int): Int = when (row) {
