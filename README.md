@@ -47,7 +47,9 @@ each update. Settings → Updates turns the check off or runs it now.
 
 Up/Down move, OK opens or acts, Back goes back, `*` opens the numbered menu (send a photo or
 video, record a voice message, save a file, open a link…), `#` does the screen's second thing
-(unread only, play/pause). The full key map is in the app: Settings → About → Key mapping.
+(unread only, play/pause). While signing in, `*` belongs to the keyboard (Shift, and its command
+palette when held), so the phone's Menu key opens the menu there. The full key map is in the app:
+Settings → About → Key mapping.
 
 ## Building
 

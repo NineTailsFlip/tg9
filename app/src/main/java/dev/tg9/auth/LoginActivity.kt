@@ -5,6 +5,7 @@ import android.content.Intent
 import android.os.Bundle
 import android.text.InputType
 import android.view.KeyEvent
+import android.view.inputmethod.InputMethodManager
 import android.view.View
 import android.view.ViewGroup
 import dev.tg9.ui.KeyEditText
@@ -171,8 +172,11 @@ class LoginActivity : NineActivity() {
         else -> "The code sent to ${info.phoneNumber}:"
     }
 
+    /** Whether [step] asks something, so the field and its keyboard are on screen. */
+    private fun hasField(step: Step): Boolean = step != Step.CONNECTING && step != Step.NO_API
+
     private fun configureField(step: Step) {
-        val enabled = step != Step.CONNECTING && step != Step.NO_API
+        val enabled = hasField(step)
         field.visibility = if (enabled) View.VISIBLE else View.INVISIBLE
         field.inputType = when (step) {
             Step.PHONE -> InputType.TYPE_CLASS_PHONE
@@ -194,8 +198,8 @@ class LoginActivity : NineActivity() {
         hintBar.setText(
             when {
                 busy -> "sending…"
-                step == Step.CONNECTING || step == Step.NO_API -> "* menu · ‹ exit"
-                else -> "ok continue · * menu · ‹ exit"
+                !hasField(step) -> "* menu · ‹ exit"
+                else -> "ok continue · Menu key: options · ‹ exit"
             },
         )
     }
@@ -251,11 +255,14 @@ class LoginActivity : NineActivity() {
             }
         }
         items += MenuItem("Settings") { openNineSettings() }
+        // K9's strip ("[123]") stays at the bottom once typing starts and doesn't make the screen
+        // shrink, so it would cover the menu; it comes back with the next key typed.
+        getSystemService(InputMethodManager::class.java).hideSoftInputFromWindow(field.windowToken, 0)
         menuSheet.show(items)
     }
 
-    /** The field owns most keys (it has focus), so OK, Back and `*` are taken here before the
-     *  EditText and the IME see them — the same interception M9's reply row does. */
+    /** The field owns most keys (it has focus), so OK, Back and the menu keys are taken here
+     *  before the EditText and the IME see them — the same interception M9's reply row does. */
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         if (handleOwnKeys(event)) return true
         if (event.action != KeyEvent.ACTION_DOWN) return super.dispatchKeyEvent(event)
@@ -279,20 +286,25 @@ class LoginActivity : NineActivity() {
 
     /** The keys this screen owns, whether the field has focus (called from its pre-IME hook, so
      *  the T9 IME never turns OK into a space) or not (from [dispatchKeyEvent]). Each acts on its
-     *  UP, see [consumeAndActOnUp]. */
+     *  UP, see [consumeAndActOnUp].
+     *
+     *  While there's a field, `*` is the keyboard's: K9 uses it for Shift (tap) and its command
+     *  palette (hold), and taking it here — as this screen once did on an empty field, and always
+     *  for the phone number and the code — opened this menu instead of a capital letter. The
+     *  phone's Menu key opens the menu then, as in Settings; `*` does only when nothing is asked
+     *  (connecting, or a build without API credentials). */
     private fun handleOwnKeys(event: KeyEvent): Boolean {
         if (menuSheet.interceptKeyEvent(event)) return true
         if (consumeAndActOnUp(event, SUBMIT_KEYS) { submit() }) return true
-        // A phone number or a code has no use for `*`; a password or a name might, so there `*`
-        // only opens the menu when nothing is typed yet.
-        val step = currentStep()
-        if (step == Step.PHONE || step == Step.CODE || field.text.isEmpty()) {
-            if (consumeAndActOnUp(event, setOf(KeyEvent.KEYCODE_STAR)) { openMenu() }) return true
-        }
+        if (consumeAndActOnUp(event, MENU_KEYS) { openMenu() }) return true
+        if (!hasField(currentStep()) && consumeAndActOnUp(event, STAR) { openMenu() }) return true
         return false
     }
 
     companion object {
+        private val MENU_KEYS = setOf(KeyEvent.KEYCODE_MENU)
+        private val STAR = setOf(KeyEvent.KEYCODE_STAR)
+
         fun intent(context: Context): Intent = Intent(context, LoginActivity::class.java)
     }
 }
