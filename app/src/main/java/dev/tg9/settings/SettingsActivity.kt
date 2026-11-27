@@ -1,6 +1,5 @@
 package dev.tg9.settings
 
-import android.app.AlertDialog
 import android.content.Intent
 import android.provider.Settings
 import dev.tg9.Prefs
@@ -13,7 +12,6 @@ import io.github.ninetailsflip.update.updatesSection
 import life.furrer.nine.core.NineSurface
 import life.furrer.nine.core.settings.NineSettingsActivity
 import life.furrer.nine.core.settings.SettingsScreen
-import life.furrer.nine.core.ui.dialogThemeResId
 import org.drinkless.tdlib.TdApi
 
 private const val MIN_FONT_SIZE = 12
@@ -81,15 +79,13 @@ class SettingsActivity : NineSettingsActivity() {
 
     private fun confirmClearCache() {
         if (clearing) return
-        AlertDialog.Builder(this, dialogThemeResId())
-            .setMessage(
-                "Delete downloaded photos, videos, voice messages and files? They download again when " +
-                    "opened. Files saved to the phone stay. Once a day, files not opened for " +
-                    "${Storage.MAX_AGE_DAYS} days, and the oldest beyond ${Storage.MAX_CACHE_MB} MB, go by themselves.",
-            )
-            .setPositiveButton("Clear") { _, _ -> clearCache() }
-            .setNegativeButton("Cancel", null)
-            .show()
+        confirm(
+            "Delete downloaded photos, videos, voice messages and files? They download again when " +
+                "opened; files saved to the phone stay. Files not opened for ${Storage.MAX_AGE_DAYS} days, " +
+                "and the oldest beyond ${Storage.MAX_CACHE_MB} MB, go by themselves once a day.",
+            yes = "Clear cache",
+            no = "Keep",
+        ) { clearCache() }
     }
 
     private fun clearCache() {
@@ -111,13 +107,9 @@ class SettingsActivity : NineSettingsActivity() {
     }
 
     private fun confirmLogOut() {
-        AlertDialog.Builder(this, dialogThemeResId())
-            .setMessage("Log out of Telegram on this phone? Your chats stay in Telegram.")
-            .setPositiveButton("Log out") { _, _ ->
-                Tg.logOut()
-                finish()
-            }
-            .setNegativeButton("Cancel", null)
-            .show()
+        confirm("Log out of Telegram on this phone? Your chats stay in Telegram.", yes = "Log out") {
+            Tg.logOut()
+            finish()
+        }
     }
 }

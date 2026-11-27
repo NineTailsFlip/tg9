@@ -366,12 +366,7 @@ class ChatListActivity : NineActivity() {
     }
 
     private fun confirmLogOut() {
-        menuSheet.show(
-            listOf(
-                MenuItem("Log out of Telegram on this phone?") { Tg.logOut() },
-                MenuItem("Cancel") { menuSheet.hide() },
-            ),
-        )
+        menuSheet.confirm("Log out of Telegram on this phone? Your chats stay in Telegram.", yes = "Log out") { Tg.logOut() }
     }
 
     companion object {

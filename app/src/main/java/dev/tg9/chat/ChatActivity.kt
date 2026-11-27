@@ -631,8 +631,8 @@ class ChatActivity : NineActivity() {
                 hintBar.setText("this message can't be deleted")
                 return@request
             }
-            items += MenuItem("Cancel") { menuSheet.hide() }
-            menuSheet.show(items)
+            items += MenuItem("Cancel") {}
+            menuSheet.show(items, question = "Delete this message?")
         }
     }
 
