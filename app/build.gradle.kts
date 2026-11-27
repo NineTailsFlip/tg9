@@ -32,8 +32,8 @@ android {
         applicationId = "io.github.ninetailsflip.tg9"
         minSdk = 34
         targetSdk = 34
-        versionCode = 6
-        versionName = "0.1.6"
+        versionCode = 7
+        versionName = "0.1.7"
         buildConfigField("int", "TG_API_ID", apiId)
         buildConfigField("String", "TG_API_HASH", "\"$apiHash\"")
     }

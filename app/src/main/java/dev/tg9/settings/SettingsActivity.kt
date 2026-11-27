@@ -31,7 +31,7 @@ class SettingsActivity : NineSettingsActivity() {
                     if (on) ConnectionService.startIfEnabled(this@SettingsActivity) else ConnectionService.stop(this@SettingsActivity)
                 },
                 on = "on (messages arrive any time)",
-                off = "off (only while TG9 is open)",
+                off = "off (only while Telegram is open)",
             )
             action("Notification sound and vibration") {
                 startActivity(

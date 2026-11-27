@@ -56,7 +56,7 @@ object Notifications {
         )
         manager.createNotificationChannel(
             NotificationChannel(CHANNEL_CONNECTION, "Background connection", NotificationManager.IMPORTANCE_MIN).apply {
-                description = "The quiet notification shown while TG9 stays connected in the background"
+                description = "The quiet notification shown while Telegram stays connected in the background"
                 setShowBadge(false)
             },
         )

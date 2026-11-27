@@ -97,7 +97,7 @@ class RecordVoiceActivity : NineActivity() {
         )
         hintBar.setText("ok send · ‹ discard")
         if (hasPermission()) start() else permissionScreen.show(
-            "TG9 needs the microphone to record a voice message. It is used only while this screen is open.",
+            "Telegram needs the microphone to record a voice message. It is used only while this screen is open.",
         )
     }
 

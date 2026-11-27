@@ -60,7 +60,7 @@ object Content {
         is TdApi.MessageBasicGroupChatCreate -> "[Created the group]"
         is TdApi.MessageSupergroupChatCreate -> "[Created the group]"
         is TdApi.MessageContactRegistered -> "[Joined Telegram]"
-        is TdApi.MessageUnsupported -> "[Not supported by TG9]"
+        is TdApi.MessageUnsupported -> "[Not supported in this app]"
         else -> "[${content.javaClass.simpleName.removePrefix("Message")}]"
     }
 

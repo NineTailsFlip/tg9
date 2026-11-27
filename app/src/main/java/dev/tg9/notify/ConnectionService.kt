@@ -69,7 +69,7 @@ class ConnectionService : Service() {
         )
         return Notification.Builder(this, Notifications.CHANNEL_CONNECTION)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
-            .setContentTitle("TG9")
+            .setContentTitle(getString(R.string.app_name))
             .setContentText(text)
             .setContentIntent(open)
             .setOngoing(true)

@@ -60,7 +60,7 @@ class LoginActivity : NineActivity() {
         super.onCreate(savedInstanceState)
 
         title = TextView(this).apply {
-            text = "TG9"
+            text = "Telegram"
             textSize = 22f
             setTextColor(Palette.WHITE)
             setPadding(dp(Dimens.SIDE_PADDING_DP), dp(16), dp(Dimens.SIDE_PADDING_DP), dp(4))

@@ -172,7 +172,7 @@ class GalleryActivity : NineActivity() {
 
     private fun askForAccess() {
         permissionScreen.show(
-            "TG9 needs to see your photos and videos to send them. Only the ones you choose here " +
+            "Telegram needs to see your photos and videos to send them. Only the ones you choose here " +
                 "leave the phone.\n\nYou can allow all of them, or pick some.",
         )
     }
@@ -220,7 +220,7 @@ class GalleryActivity : NineActivity() {
         subtitle.text = when {
             !loaded -> ""
             marks.size > 0 -> "${marks.size} marked of $count"
-            hasPartialAccess() -> "$count you allowed TG9 to see"
+            hasPartialAccess() -> "$count you allowed Telegram to see"
             else -> "$count photos and videos"
         }
         subtitle.visibility = if (subtitle.text.isEmpty()) View.GONE else View.VISIBLE
@@ -454,7 +454,7 @@ class GalleryActivity : NineActivity() {
             }
         }
         if (loaded && hasPartialAccess()) {
-            items += MenuItem("Choose which photos TG9 sees") { requestPermissions(GalleryStore.PERMISSIONS, REQUEST_MEDIA) }
+            items += MenuItem("Choose which photos Telegram sees") { requestPermissions(GalleryStore.PERMISSIONS, REQUEST_MEDIA) }
         }
         items += MenuItem("Back to chat") { finish() }
         menuSheet.show(items)
